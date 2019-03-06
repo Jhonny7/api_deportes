@@ -24,23 +24,17 @@ $app->put('/createPlayer', function() use ($app){
         $db->beginTransaction();
         $body = $app->request->getBody();
         $data = json_decode($body, true);
-        //Creación de level.
-        $createLevel = 'INSERT INTO level (`id_status`, `level`) VALUES (1, ?)';
-        $level = $data['level'];
-        $sthLevel = $db->prepare($createLevel);
-        $sthLevel->bindParam(1, $level, PDO::PARAM_STR);
-        $sthLevel->execute();
-        $idLevel = $db->lastInsertId();
         
         //Creación de jugador simple.
-        $createJugador = 'INSERT INTO jugador (`fotografia`, `sale`, `rama`) VALUES (?,?,?)';
+        $createJugador = 'INSERT INTO jugador (`id_level`, `fotografia`, `sale`, `rama`) VALUES (?,?,?,?)';
         $fotografia = $data['fotografia'];
         $sale = $data['sale'];
         $rama = $data['rama'];
         $sthJugador = $db->prepare($createJugador);
-        $sthJugador->bindParam(1, $fotografia, PDO::PARAM_STR);
-        $sthJugador->bindParam(2, $sale, PDO::PARAM_STR);//Se usa string para datos numericos
-        $sthJugador->bindParam(3, $rama, PDO::PARAM_STR);
+        $sthJugador->bindParam(1, $data['idLevel'], PDO::PARAM_INT);
+        $sthJugador->bindParam(2, $fotografia, PDO::PARAM_STR);
+        $sthJugador->bindParam(3, $sale, PDO::PARAM_STR);//Se usa string para datos numericos
+        $sthJugador->bindParam(4, $rama, PDO::PARAM_STR);
         $sthJugador->execute();
         $idJugador = $db->lastInsertId();
 
@@ -48,9 +42,10 @@ $app->put('/createPlayer', function() use ($app){
         $equipos = $data['equipos'];
         for ($i=0; $i < count($equipos); $i++) { 
             //Creación de estadística en ceros.
-            $createEstadistica = 'INSERT INTO estadistica (`id_level`) VALUES (?)';
+            $createEstadistica = 'INSERT INTO 
+                                  estadistica (`touch_pass`, `annotation_by_race`, `annotation_by_pass`, 
+                                  `interceptions`, `sachs`, `conversions`) VALUES (0,0,0,0,0,0);';
             $sthEstadistica = $db->prepare($createEstadistica);
-            $sthEstadistica->bindParam(1, $idLevel, PDO::PARAM_INT);
             $sthEstadistica->execute();
             $idEstadistica = $db->lastInsertId();
 
@@ -222,6 +217,103 @@ $app->post('/updatePlayer', function() use ($app){
     }
 });
 
+/* delete jugador */
+$app->delete('/deletePlayer', function() use ($app){
+    try{
+        $response = array();
+        $dbHandler = new DbHandler();
+        $db = $dbHandler->getConnection();
+        
+        $db->beginTransaction();
+        $body = $app->request->getBody();
+        $data = json_decode($body, true);
+        $idJugador = $data['idJugador'];
+
+        $selectEstadisticas = 'SELECT e.id FROM estadistica e
+                               INNER JOIN jugador_estadistica je ON (je.id_estadistica = e.id) WHERE je.id_jugador = ?';
+        $sthEquipoSelect = $db->prepare($selectEstadisticas);
+        $sthEquipoSelect->bindParam(1, $idJugador, PDO::PARAM_INT);
+        $sthEquipoSelect->execute();
+
+        $rows = $sthEquipoSelect->fetchAll(PDO::FETCH_OBJ);
+
+        for ($i=0; $i < count($rows); $i++) { 
+            $tempID = $rows[$i]->id;
+
+            //Al eliminar el jugador 
+            $deleteEstadisticas = 'DELETE FROM jugador_estadistica WHERE id_jugador = ?';
+            $sthEquipoDelete = $db->prepare($deleteEstadisticas);
+            $sthEquipoDelete->bindParam(1, $idJugador, PDO::PARAM_INT);
+            $sthEquipoDelete->execute();
+
+            //Al eliminar el jugador 
+            $deleteEstadistica = 'DELETE FROM estadistica WHERE id = ?';
+            $sthEquipoDeleteEst = $db->prepare($deleteEstadistica);
+            $sthEquipoDeleteEst->bindParam(1, $tempID, PDO::PARAM_INT);
+            $sthEquipoDeleteEst->execute();            
+        }
+        //Se elimina usuario
+        $deleteJugadorU = 'DELETE FROM usuario WHERE id_jugador = ?';
+        $sthJugadorUDelete = $db->prepare($deleteJugadorU);
+        $sthJugadorUDelete->bindParam(1, $idJugador, PDO::PARAM_INT);
+        $sthJugadorUDelete->execute();
+
+        //Al eliminar el jugador 
+        $deleteJugador = 'DELETE FROM jugador WHERE id = ?';
+        $sthJugadorDelete = $db->prepare($deleteJugador);
+        $sthJugadorDelete->bindParam(1, $idJugador, PDO::PARAM_INT);
+        $sthJugadorDelete->execute();
+
+        //Commit exitoso de transacción
+        $db->commit();
+
+        $response["status"] = "A";
+        $response["description"] = "Exitoso";
+        $response["idTransaction"] = time();
+        $response["parameters"] = [];
+        $response["timeRequest"] = date("Y-m-d H:i:s");
+        echoResponse(200, $response);
+    }catch(Exception $e){
+        $db->rollBack();
+        $response["status"] = "I";
+        $response["description"] = $e->getMessage();
+        $response["idTransaction"] = time();
+        $response["parameters"] = $e;
+        $response["timeRequest"] = date("Y-m-d H:i:s");
+        echoResponse(400, $response);
+    }
+});
+
+/* Obtener jugadores*/
+$app->get('/getPlayers', function() use ($app){
+    try{
+        $response = array();
+        $dbHandler = new DbHandler();
+        $db = $dbHandler->getConnection();
+        //Creación de level.
+        $getLevels = 'SELECT 
+                    id_jugador,
+                    concat(nombre," ", apellido_paterno," ", apellido_materno) as nombreCompleto
+                    FROM usuario WHERE id_jugador IS NOT NULL';
+        $sth = $db->prepare($getLevels);
+        $sth->execute();
+        $rows = $sth->fetchAll(PDO::FETCH_ASSOC);
+
+        $response["status"] = "A";
+        $response["description"] = "Exitoso";
+        $response["idTransaction"] = time();
+        $response["parameters"] = $rows;
+        $response["timeRequest"] = date("Y-m-d H:i:s");
+        echoResponse(200, $response);
+    }catch(Exception $e){
+        $response["status"] = "I";
+        $response["description"] = $e->getMessage();
+        $response["idTransaction"] = time();
+        $response["parameters"] = $e;
+        $response["timeRequest"] = date("Y-m-d H:i:s");
+        echoResponse(400, $response);
+    }
+});
 
 /* corremos la aplicación */
 $app->run();

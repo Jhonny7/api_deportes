@@ -13,44 +13,73 @@ require '../libs/Slim/Slim.php';
 \Slim\Slim::registerAutoloader(); 
 $app = new \Slim\Slim(); 
 
-/* Obtener equipor por jugador*/
-$app->get('/getTeamsByPlayer', function() use ($app){
+
+/* Actualizar estadísticas de equipo por usuario*/
+$app->post('/updateTeamStatisticsFromPlayer', function() use ($app){
+    try{
+        $response = array();
+        $dbHandler = new DbHandler();
+        $db = $dbHandler->getConnection();
+        $db->beginTransaction();
+
+        $body = $app->request->getBody();
+        $data = json_decode($body, true);
+        //Creación de level.UPDATE `futbol_americano_v1`.`equipo` SET `nombre` = 'sdfsds' WHERE (`id` = '1');
+        $updateEstadistica = 'UPDATE estadistica SET 
+                        touch_pass = ?, annotation_by_race = ?, annotation_by_pass = ?, 
+                        interceptions = ?, sachs = ?, conversions = ? WHERE id = ?';
+        
+        $touch_pass = $data['touch_pass'];
+        $annotation_by_race = $data['annotation_by_race'];
+        $annotation_by_pass = $data['annotation_by_pass'];
+        $interceptions = $data['interceptions'];
+        $sachs = $data['sachs'];
+        $conversions = $data['conversions'];
+        $id = $data['id'];
+
+        $sthEstadistica = $db->prepare($updateEstadistica);
+        $sthEstadistica->bindParam(1, $touch_pass, PDO::PARAM_INT);
+        $sthEstadistica->bindParam(2, $annotation_by_race, PDO::PARAM_INT);
+        $sthEstadistica->bindParam(3, $annotation_by_pass, PDO::PARAM_INT);
+        $sthEstadistica->bindParam(4, $interceptions, PDO::PARAM_INT);
+        $sthEstadistica->bindParam(5, $sachs, PDO::PARAM_INT);
+        $sthEstadistica->bindParam(6, $conversions, PDO::PARAM_INT);
+        $sthEstadistica->bindParam(7, $id, PDO::PARAM_INT);
+        $sthEstadistica->execute();
+
+
+        //Commit exitoso de transacción
+        $db->commit();
+
+        $response["status"] = "A";
+        $response["description"] = "Exitoso";
+        $response["idTransaction"] = time();
+        $response["parameters"] = [];
+        $response["timeRequest"] = date("Y-m-d H:i:s");
+        echoResponse(200, $response);
+    }catch(Exception $e){
+        $db->rollBack();
+        $response["status"] = "I";
+        $response["description"] = $e->getMessage();
+        $response["idTransaction"] = time();
+        $response["parameters"] = $e;
+        $response["timeRequest"] = date("Y-m-d H:i:s");
+        echoResponse(400, $response);
+    }
+});
+
+/* Obtener levels*/
+$app->get('/getLevels', function() use ($app){
     try{
         $response = array();
         $dbHandler = new DbHandler();
         $db = $dbHandler->getConnection();
         //Creación de level.
-        $createEquipo = 'SELECT 
-                        u.id_jugador,
-                        u.id as id_usuario,
-                        je.id_equipo,
-                        je.id_estadistica,
-                        eq.nombre as nombre_equipo,
-                        u.nombre,
-                        u.apellido_paterno,
-                        u.apellido_materno,
-                        j.rama,
-                        j.fotografia,
-                        j.sale,
-                        l.level,
-                        e.touch_pass,
-                        e.annotation_by_pass,
-                        e.annotation_by_race,
-                        e.interceptions,
-                        e.sachs,
-                        e.conversions
-                        FROM jugador_estadistica je
-                        INNER JOIN jugador j ON (je.id_jugador = j.id) 
-                        INNER JOIN usuario u ON (j.id = u.id_jugador)
-                        INNER JOIN equipo eq ON (eq.id = je.id_equipo)
-                        INNER JOIN estadistica e ON (e.id = je.id_estadistica)
-                        INNER JOIN level l ON (l.id = j.id_level)
-                        WHERE je.id_jugador = ? AND eq.id_status = 1';
-        $idJugador = $app->request()->params('idJugador');
-        $sthEquipo = $db->prepare($createEquipo);
-        $sthEquipo->bindParam(1, $idJugador, PDO::PARAM_INT);
-        $sthEquipo->execute();
-        $rows = $sthEquipo->fetchAll(PDO::FETCH_ASSOC);
+        $getLevels = 'SELECT * FROM level WHERE id_status = 1';
+        $sth = $db->prepare($getLevels);
+        $sth->execute();
+        $rows = $sth->fetchAll(PDO::FETCH_ASSOC);
+
         $response["status"] = "A";
         $response["description"] = "Exitoso";
         $response["idTransaction"] = time();
@@ -67,21 +96,24 @@ $app->get('/getTeamsByPlayer', function() use ($app){
     }
 });
 
-/* Obtener equipor por jugador*/
-$app->get('/getTeams', function() use ($app){
+/* Obtener levels*/
+$app->get('/getLevelById', function() use ($app){
     try{
         $response = array();
         $dbHandler = new DbHandler();
         $db = $dbHandler->getConnection();
+        $idLevel = $app->request()->params('idLevel');
         //Creación de level.
-        $createEquipo = 'SELECT id, nombre FROM equipo WHERE id_status = 1';
-        $sthEquipo = $db->prepare($createEquipo);
-        $sthEquipo->execute();
-        $rows = $sthEquipo->fetchAll(PDO::FETCH_ASSOC);
+        $getLevels = 'SELECT * FROM level WHERE id = ?';
+        $sth = $db->prepare($getLevels);
+        $sth->bindParam(1, $idLevel, PDO::PARAM_INT);
+        $sth->execute();
+        $rows = $sth->fetchAll(PDO::FETCH_ASSOC);
+
         $response["status"] = "A";
         $response["description"] = "Exitoso";
         $response["idTransaction"] = time();
-        $response["parameters"] = $rows;
+        $response["parameters"] = $rows[0];
         $response["timeRequest"] = date("Y-m-d H:i:s");
         echoResponse(200, $response);
     }catch(Exception $e){
@@ -94,8 +126,90 @@ $app->get('/getTeams', function() use ($app){
     }
 });
 
-/* Crear equipo*/
-$app->put('/createTeam', function() use ($app){
+/* Editar Level */
+$app->post('/updateLevel', function() use ($app){
+    try{
+        $response = array();
+        $dbHandler = new DbHandler();
+        $db = $dbHandler->getConnection();
+        
+        $body = $app->request->getBody();
+        $data = json_decode($body, true);
+
+        $db->beginTransaction();
+        //Creación de level.UPDATE `futbol_americano_v1`.`equipo` SET `nombre` = 'sdfsds' WHERE (`id` = '1');
+        $updateEquipo = 'UPDATE level SET id_status = ?, level = ? WHERE id = ?';
+        $idEstatus = $data['idEstatus'];
+        $levelDescripcion = $data['levelDescripcion'];
+        $idLevel = $data['idLevel'];
+        $sthEquipo = $db->prepare($updateEquipo);
+        $sthEquipo->bindParam(1, $idEstatus, PDO::PARAM_INT);
+        $sthEquipo->bindParam(2, $levelDescripcion, PDO::PARAM_STR);
+        $sthEquipo->bindParam(3, $idLevel, PDO::PARAM_INT);
+        $sthEquipo->execute();
+
+
+        //Commit exitoso de transacción
+        $db->commit();
+
+        $response["status"] = "A";
+        $response["description"] = "Exitoso";
+        $response["idTransaction"] = time();
+        $response["parameters"] = $idEquipo;
+        $response["timeRequest"] = date("Y-m-d H:i:s");
+        echoResponse(200, $response);
+    }catch(Exception $e){
+        $db->rollBack();
+        $response["status"] = "I";
+        $response["description"] = $e->getMessage();
+        $response["idTransaction"] = time();
+        $response["parameters"] = $e;
+        $response["timeRequest"] = date("Y-m-d H:i:s");
+        echoResponse(400, $response);
+    }
+});
+
+/* Eliminar Level */
+$app->delete('/deleteLevel', function() use ($app){
+    try{
+        $response = array();
+        $dbHandler = new DbHandler();
+        $db = $dbHandler->getConnection();
+        
+        $body = $app->request->getBody();
+        $data = json_decode($body, true);
+
+        $db->beginTransaction();
+        //Creación de level.UPDATE `futbol_americano_v1`.`equipo` SET `nombre` = 'sdfsds' WHERE (`id` = '1');
+        $updateEquipo = 'DELETE FROM level WHERE id = ?';
+        $idLevel = $data['idLevel'];
+        $sthEquipo = $db->prepare($updateEquipo);
+        $sthEquipo->bindParam(1, $idLevel, PDO::PARAM_INT);
+        $sthEquipo->execute();
+
+
+        //Commit exitoso de transacción
+        $db->commit();
+
+        $response["status"] = "A";
+        $response["description"] = "Exitoso";
+        $response["idTransaction"] = time();
+        $response["parameters"] = $idEquipo;
+        $response["timeRequest"] = date("Y-m-d H:i:s");
+        echoResponse(200, $response);
+    }catch(Exception $e){
+        $db->rollBack();
+        $response["status"] = "I";
+        $response["description"] = $e->getMessage();
+        $response["idTransaction"] = time();
+        $response["parameters"] = "No es posible eliminar el nivel seleccionado, verifique que ningún jugador tenga asignado ese nivel y cambielo para poder eliminarlo ó puede editar su nivel y cambiarle el nombre (Para más información contacte al administrador)";
+        $response["timeRequest"] = date("Y-m-d H:i:s");
+        echoResponse(400, $response);
+    }
+});
+
+/* Crear Nivel*/
+$app->put('/createLevel', function() use ($app){
     try{
         $response = array();
         $dbHandler = new DbHandler();
@@ -107,11 +221,10 @@ $app->put('/createTeam', function() use ($app){
         $db->beginTransaction();
         $idEstatusActivo = 1;
         //Creación de level.
-        $createEquipo = 'INSERT INTO equipo (`id_status`, `nombre`, `fecha_ult_modificacion`) VALUES (?, ?, now());';
-        $nombre = $data['nombre'];
+        $createEquipo = 'INSERT INTO level (`id_status`, `level`) VALUES (1, ?);';
+        $nombre = $data['descripcion'];
         $sthEquipo = $db->prepare($createEquipo);
-        $sthEquipo->bindParam(1, $idEstatusActivo, PDO::PARAM_INT);
-        $sthEquipo->bindParam(2, $nombre, PDO::PARAM_STR);
+        $sthEquipo->bindParam(1, $nombre, PDO::PARAM_STR);
         $sthEquipo->execute();
         $idEquipo = $db->lastInsertId();
 
@@ -135,220 +248,6 @@ $app->put('/createTeam', function() use ($app){
     }
 });
 
-/* Editar Equipo */
-$app->post('/updateTeam', function() use ($app){
-    try{
-        $response = array();
-        $dbHandler = new DbHandler();
-        $db = $dbHandler->getConnection();
-        
-        $body = $app->request->getBody();
-        $data = json_decode($body, true);
-
-        $db->beginTransaction();
-        //Creación de level.UPDATE `futbol_americano_v1`.`equipo` SET `nombre` = 'sdfsds' WHERE (`id` = '1');
-        $updateEquipo = 'UPDATE equipo SET nombre = ?, fecha_ult_modificacion = now(), id_status = ? WHERE id = ?';
-        $nombre = $data['nombre'];
-        $idEquipo = $data['idEquipo'];
-        $idEstatus = $data['idEstatus'];
-        $sthEquipo = $db->prepare($updateEquipo);
-        $sthEquipo->bindParam(3, $idEquipo, PDO::PARAM_INT);
-        $sthEquipo->bindParam(2, $idEstatus, PDO::PARAM_INT);
-        $sthEquipo->bindParam(1, $nombre, PDO::PARAM_STR);
-        $sthEquipo->execute();
-
-
-        //Commit exitoso de transacción
-        $db->commit();
-
-        $response["status"] = "A";
-        $response["description"] = "Exitoso";
-        $response["idTransaction"] = time();
-        $response["parameters"] = $idEquipo;
-        $response["timeRequest"] = date("Y-m-d H:i:s");
-        echoResponse(200, $response);
-    }catch(Exception $e){
-        $db->rollBack();
-        $response["status"] = "I";
-        $response["description"] = $e->getMessage();
-        $response["idTransaction"] = time();
-        $response["parameters"] = $e;
-        $response["timeRequest"] = date("Y-m-d H:i:s");
-        echoResponse(400, $response);
-    }
-});
-
-/* Eliminar Equipo lógicamente*/
-$app->delete('/deleteTeam', function() use ($app){
-    try{
-        $response = array();
-        $dbHandler = new DbHandler();
-        $db = $dbHandler->getConnection();
-        
-        $body = $app->request->getBody();
-        $data = json_decode($body, true);
-
-        $db->beginTransaction();
-        //Creación de level.UPDATE `futbol_americano_v1`.`equipo` SET `nombre` = 'sdfsds' WHERE (`id` = '1');
-        $updateEquipo = 'UPDATE equipo SET fecha_ult_modificacion = now(), id_status = 3 WHERE id = ?';
-        $idEquipo = $data['idEquipo'];
-        $sthEquipo = $db->prepare($updateEquipo);
-        $sthEquipo->bindParam(1, $idEquipo, PDO::PARAM_INT);
-        $sthEquipo->execute();
-
-        //Al eliminar el equipo 
-        $selectEstadisticas = 'SELECT e.id FROM estadistica e
-                               INNER JOIN jugador_estadistica je ON (je.id_estadistica = e.id) WHERE je.id_equipo = ?';
-        $sthEquipoSelect = $db->prepare($selectEstadisticas);
-        $sthEquipoSelect->bindParam(1, $idEquipo, PDO::PARAM_INT);
-        $sthEquipoSelect->execute();
-
-        $rows = $sthEquipoSelect->fetchAll(PDO::FETCH_OBJ);
-
-        for ($i=0; $i < count($rows); $i++) { 
-            $tempID = $rows[$i]->id;
-
-            //Al eliminar el equipo 
-            $deleteEstadisticas = 'DELETE FROM jugador_estadistica WHERE id_equipo = ?';
-            $sthEquipoDelete = $db->prepare($deleteEstadisticas);
-            $sthEquipoDelete->bindParam(1, $idEquipo, PDO::PARAM_INT);
-            $sthEquipoDelete->execute();
-
-            //Al eliminar el equipo 
-            $deleteEstadistica = 'DELETE FROM estadistica WHERE id = ?';
-            $sthEquipoDeleteEst = $db->prepare($deleteEstadistica);
-            $sthEquipoDeleteEst->bindParam(1, $tempID, PDO::PARAM_INT);
-            $sthEquipoDeleteEst->execute();            
-        }
-
-        //Commit exitoso de transacción
-        $db->commit();
-
-        $response["status"] = "A";
-        $response["description"] = "Exitoso";
-        $response["idTransaction"] = time();
-        $response["parameters"] = $idEquipo;
-        $response["timeRequest"] = date("Y-m-d H:i:s");
-        echoResponse(200, $response);
-    }catch(Exception $e){
-        $db->rollBack();
-        $response["status"] = "I";
-        $response["description"] = $e->getMessage();
-        $response["idTransaction"] = time();
-        $response["parameters"] = $e;
-        $response["timeRequest"] = date("Y-m-d H:i:s");
-        echoResponse(400, $response);
-    }
-});
-
-/* Agregar equipo a un jugador*/
-$app->put('/addTeamToPlayer', function() use ($app){
-    try{
-        $response = array();
-        $dbHandler = new DbHandler();
-        $db = $dbHandler->getConnection();
-        $db->beginTransaction();
-
-        $body = $app->request->getBody();
-        $data = json_decode($body, true);
-
-        $createEstadistica = 'INSERT INTO 
-                            estadistica (`touch_pass`, `annotation_by_race`, `annotation_by_pass`, `interceptions`, `sachs`, `conversions`) 
-                            VALUES (0,0,0,0,0,0)';
-        $sthEstadistica = $db->prepare($createEstadistica);
-        $sthEstadistica->execute();
-        $idEstadistica = $db->lastInsertId();
-
-        $createJugadorEstadistica = 'INSERT INTO jugador_estadistica (`id_equipo`, `id_jugador`, `id_estadistica`) VALUES (?,?,?)';
-        $sthJugadorEstadistica = $db->prepare($createJugadorEstadistica);
-        $sthJugadorEstadistica->bindParam(1, $data['idEquipo'], PDO::PARAM_INT);
-        $sthJugadorEstadistica->bindParam(2, $data['idJugador'], PDO::PARAM_INT);
-        $sthJugadorEstadistica->bindParam(3, $idEstadistica, PDO::PARAM_INT);
-        $sthJugadorEstadistica->execute();
-        $idJugadorEstadistica = $db->lastInsertId();
-
-
-        //Commit exitoso de transacción
-        $db->commit();
-
-        $response["status"] = "A";
-        $response["description"] = "Exitoso";
-        $response["idTransaction"] = time();
-        $response["parameters"] = $idJugadorEstadistica;
-        $response["timeRequest"] = date("Y-m-d H:i:s");
-        echoResponse(200, $response);
-    }catch(Exception $e){
-        $db->rollBack();
-        $response["status"] = "I";
-        $response["description"] = $e->getMessage();
-        $response["idTransaction"] = time();
-        $response["parameters"] = $e;
-        $response["timeRequest"] = date("Y-m-d H:i:s");
-        echoResponse(400, $response);
-    }
-});
-
-/* Delete equipo a un jugador*/
-$app->delete('/removeTeamFromPlayer', function() use ($app){
-    try{
-        $response = array();
-        $dbHandler = new DbHandler();
-        $db = $dbHandler->getConnection();
-        $db->beginTransaction();
-
-        $body = $app->request->getBody();
-        $data = json_decode($body, true);
-
-        $idEquipo = $data['idEquipo'];
-        $idJugador = $data['idJugador'];
-
-        //Al eliminar el equipo 
-        $selectEstadisticas = 'SELECT e.id FROM estadistica e
-                               INNER JOIN jugador_estadistica je ON (je.id_estadistica = e.id) 
-                               WHERE je.id_equipo = ? AND je.id_jugador = ?';
-        $sthEquipoSelect = $db->prepare($selectEstadisticas);
-        $sthEquipoSelect->bindParam(1, $idEquipo, PDO::PARAM_INT);
-        $sthEquipoSelect->bindParam(2, $idJugador, PDO::PARAM_INT);
-        $sthEquipoSelect->execute();
-
-        $rows = $sthEquipoSelect->fetchAll(PDO::FETCH_OBJ);
-
-        for ($i=0; $i < count($rows); $i++) { 
-            $tempID = $rows[$i]->id;
-
-            //Al eliminar el equipo 
-            $deleteEstadisticas = 'DELETE FROM jugador_estadistica WHERE id_equipo = ? AND id_jugador = ?';
-            $sthEquipoDelete = $db->prepare($deleteEstadisticas);
-            $sthEquipoDelete->bindParam(1, $idEquipo, PDO::PARAM_INT);
-            $sthEquipoDelete->bindParam(2, $idJugador, PDO::PARAM_INT);
-            $sthEquipoDelete->execute();
-
-            //Al eliminar el equipo 
-            $deleteEstadistica = 'DELETE FROM estadistica WHERE id = ?';
-            $sthEquipoDeleteEst = $db->prepare($deleteEstadistica);
-            $sthEquipoDeleteEst->bindParam(1, $tempID, PDO::PARAM_INT);
-            $sthEquipoDeleteEst->execute();            
-        }
-
-        //Commit exitoso de transacción
-        $db->commit();
-
-        $response["status"] = "A";
-        $response["description"] = "Exitoso";
-        $response["idTransaction"] = time();
-        $response["parameters"] = $idEquipo;
-        $response["timeRequest"] = date("Y-m-d H:i:s");
-        echoResponse(200, $response);
-    }catch(Exception $e){
-        $db->rollBack();
-        $response["status"] = "I";
-        $response["description"] = $e->getMessage();
-        $response["idTransaction"] = time();
-        $response["parameters"] = $e;
-        $response["timeRequest"] = date("Y-m-d H:i:s");
-        echoResponse(400, $response);
-    }
-});
 /* corremos la aplicación */
 $app->run();
 
