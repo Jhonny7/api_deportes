@@ -292,9 +292,13 @@ $app->get('/getPlayers', function() use ($app){
         $db = $dbHandler->getConnection();
         //Creación de level.
         $getLevels = 'SELECT 
-                    id_jugador,
-                    concat(nombre," ", apellido_paterno," ", apellido_materno) as nombreCompleto
-                    FROM usuario WHERE id_jugador IS NOT NULL';
+                    u.id_jugador,
+                    j.fotografia,
+                    concat(u.nombre," ", u.apellido_paterno," ", u.apellido_materno) as nombreCompleto,
+                    j.rama
+                    FROM usuario u
+                    INNER JOIN jugador j ON (u.id_jugador = j.id)
+                    WHERE u.id_jugador IS NOT NULL';
         $sth = $db->prepare($getLevels);
         $sth->execute();
         $rows = $sth->fetchAll(PDO::FETCH_ASSOC);

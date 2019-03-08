@@ -20,12 +20,9 @@ $app->get('/getAuthenticate', function() use ($app){
         $response = array();
         $dbHandler = new DbHandler();
         $db = $dbHandler->getConnection();
-        
-        $body = $app->request->getBody();
-        $data = json_decode($body, true);
 
-        $user = $data['user'];
-        $password = $data['password'];
+        $user = $app->request()->params('user');
+        $password = $app->request()->params('password');
         $passwordEncriptado = dec_enc("encrypt",$password);
         //$resultado = $db->getRadios();
         $sql = 'SELECT 
@@ -47,7 +44,7 @@ $app->get('/getAuthenticate', function() use ($app){
         	$response["status"] = "A";
 	        $response["description"] = "Exitoso";
 	        $response["idTransaction"] = time();
-	        $response["parameters"] = $rows;
+	        $response["parameters"] = $rows[0];
 	        $response["timeRequest"] = date("Y-m-d H:i:s");
 
 	        echoResponse(200, $response);
