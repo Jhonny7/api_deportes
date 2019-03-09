@@ -25,9 +25,6 @@ En tu navegador accede a  Ej.: http://localhost/{nombre-de-directorio}/v1/. Aseg
 
 ## Autor
 
-* **Juan López Sarrelangue** - [Juan López Sarrelangue](sarrejuan@gmail.com)
-
-## Autor del ejemplo base
 * **Federico Guzmán** - [Federico Guzman](http://about.me/federicoguzman)
 
 ## License

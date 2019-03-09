@@ -15,7 +15,7 @@ $app = new \Slim\Slim();
 
 
 /* Usando GET para consultar los autos */
-$app->put('/createPlayer', function() use ($app){
+$app->post('/createPlayer', function() use ($app){
     try{
         $response = array();
         $dbHandler = new DbHandler();
@@ -24,74 +24,88 @@ $app->put('/createPlayer', function() use ($app){
         $db->beginTransaction();
         $body = $app->request->getBody();
         $data = json_decode($body, true);
-        
-        //Creación de jugador simple.
-        $createJugador = 'INSERT INTO jugador (`id_level`, `fotografia`, `sale`, `rama`) VALUES (?,?,?,?)';
-        $fotografia = $data['fotografia'];
-        $sale = $data['sale'];
-        $rama = $data['rama'];
-        $sthJugador = $db->prepare($createJugador);
-        $sthJugador->bindParam(1, $data['idLevel'], PDO::PARAM_INT);
-        $sthJugador->bindParam(2, $fotografia, PDO::PARAM_STR);
-        $sthJugador->bindParam(3, $sale, PDO::PARAM_STR);//Se usa string para datos numericos
-        $sthJugador->bindParam(4, $rama, PDO::PARAM_STR);
-        $sthJugador->execute();
-        $idJugador = $db->lastInsertId();
 
-        //Creación de objeto jugador-estadistica
-        $equipos = $data['equipos'];
-        for ($i=0; $i < count($equipos); $i++) { 
-            //Creación de estadística en ceros.
-            $createEstadistica = 'INSERT INTO 
-                                  estadistica (`touch_pass`, `annotation_by_race`, `annotation_by_pass`, 
-                                  `interceptions`, `sachs`, `conversions`) VALUES (0,0,0,0,0,0);';
-            $sthEstadistica = $db->prepare($createEstadistica);
-            $sthEstadistica->execute();
-            $idEstadistica = $db->lastInsertId();
+        $querieVerifyUser = 'SELECT * FROM usuario WHERE username = ?';
+        $sth = $db->prepare($querieVerifyUser);
+        $sth->bindParam(1, $data['username'], PDO::PARAM_STR);
+        $sth->execute();
+        $rows = $sth->fetchAll(PDO::FETCH_ASSOC);
 
-            $createJugadorEstadistica = 'INSERT INTO jugador_estadistica (`id_equipo`, `id_jugador`, `id_estadistica`) VALUES (?,?,?)';
-            $idEquipo = $app->request()->params('id_equipo');
-            $sthJugadorEstadistica = $db->prepare($createJugadorEstadistica);
-            $sthJugadorEstadistica->bindParam(1, $equipos[$i], PDO::PARAM_INT);
-            $sthJugadorEstadistica->bindParam(2, $idJugador, PDO::PARAM_INT);
-            $sthJugadorEstadistica->bindParam(3, $idEstadistica, PDO::PARAM_INT);
-            $sthJugadorEstadistica->execute();
-            $idJugadorEstadistica = $db->lastInsertId();
+        if(empty($rows)){
+            //Creación de jugador simple.
+            $createJugador = 'INSERT INTO jugador (`id_level`, `fotografia`, `sale`, `rama`) VALUES (?,?,?,?)';
+            $fotografia = $data['fotografia'];
+            $sale = $data['sale'];
+            $rama = $data['rama'];
+            $sthJugador = $db->prepare($createJugador);
+            $sthJugador->bindParam(1, $data['idLevel'], PDO::PARAM_INT);
+            $sthJugador->bindParam(2, $fotografia, PDO::PARAM_STR);
+            $sthJugador->bindParam(3, $sale, PDO::PARAM_STR);//Se usa string para datos numericos
+            $sthJugador->bindParam(4, $rama, PDO::PARAM_STR);
+            $sthJugador->execute();
+            $idJugador = $db->lastInsertId();
+
+            //Creación de objeto jugador-estadistica
+            $equipos = $data['equipos'];
+            for ($i=0; $i < count($equipos); $i++) { 
+                //Creación de estadística en ceros.
+                $createEstadistica = 'INSERT INTO 
+                                      estadistica (`touch_pass`, `annotation_by_race`, `annotation_by_pass`, 
+                                      `interceptions`, `sachs`, `conversions`) VALUES (0,0,0,0,0,0);';
+                $sthEstadistica = $db->prepare($createEstadistica);
+                $sthEstadistica->execute();
+                $idEstadistica = $db->lastInsertId();
+
+                $createJugadorEstadistica = 'INSERT INTO jugador_estadistica (`id_equipo`, `id_jugador`, `id_estadistica`) VALUES (?,?,?)';
+                $sthJugadorEstadistica = $db->prepare($createJugadorEstadistica);
+                $sthJugadorEstadistica->bindParam(1, $equipos[$i], PDO::PARAM_INT);
+                $sthJugadorEstadistica->bindParam(2, $idJugador, PDO::PARAM_INT);
+                $sthJugadorEstadistica->bindParam(3, $idEstadistica, PDO::PARAM_INT);
+                $sthJugadorEstadistica->execute();
+                $idJugadorEstadistica = $db->lastInsertId();
+            }
+
+            //Creación de usuario con datos de jugador
+            $createUsuario = 'INSERT INTO usuario 
+            (`id_rol`, `id_status`, `id_jugador`, `username`, `password`, `nombre`, `apellido_paterno`, `apellido_materno`) 
+            VALUES (?,?,?,?,MD5(?),?,?,?)';
+            $idRol = 2;//Rol jugador
+            $idStatus = 1;//Estatus Activo
+            $username = $data['username'];
+            $password = $data['password'];
+            $nombre = $data['nombre'];
+            $apellidoPaterno = $data['apellido_paterno'];
+            $apellidoMaterno = $data['apellido_materno'];
+            $passwordEncriptado = dec_enc('encrypt',$password);
+            $sthUsuario = $db->prepare($createUsuario);
+            $sthUsuario->bindParam(1, $idRol, PDO::PARAM_INT);
+            $sthUsuario->bindParam(2, $idStatus, PDO::PARAM_INT);
+            $sthUsuario->bindParam(3, $idJugador, PDO::PARAM_INT);
+            $sthUsuario->bindParam(4, $username, PDO::PARAM_STR);
+            $sthUsuario->bindParam(5, $passwordEncriptado, PDO::PARAM_STR);
+            $sthUsuario->bindParam(6, $nombre, PDO::PARAM_STR);
+            $sthUsuario->bindParam(7, $apellidoPaterno, PDO::PARAM_STR);
+            $sthUsuario->bindParam(8, $apellidoMaterno, PDO::PARAM_STR);
+            $sthUsuario->execute();
+            $idUsuario = $db->lastInsertId();
+
+            //Commit exitoso de transacción
+            $db->commit();
+
+            $response["status"] = "A";
+            $response["description"] = "Exitoso";
+            $response["idTransaction"] = time();
+            $response["parameters"] = $idUsuario;
+            $response["timeRequest"] = date("Y-m-d H:i:s");
+            echoResponse(200, $response);
+        }else{
+            $response["status"] = "I";
+            $response["description"] = "EL usuario ".$data['username']." no se encuentra disponible, intente nuevamente";
+            $response["idTransaction"] = time();
+            $response["parameters"] = [];
+            $response["timeRequest"] = date("Y-m-d H:i:s");
+            echoResponse(200, $response);
         }
-
-        //Creación de usuario con datos de jugador
-        $createUsuario = 'INSERT INTO usuario 
-        (`id_rol`, `id_status`, `id_jugador`, `username`, `password`, `nombre`, `apellido_paterno`, `apellido_materno`) 
-        VALUES (?,?,?,?,MD5(?),?,?,?)';
-        $idRol = 2;//Rol jugador
-        $idStatus = 1;//Estatus Activo
-        $username = $data['username'];
-        $password = $data['password'];
-        $nombre = $data['nombre'];
-        $apellidoPaterno = $data['apellido_paterno'];
-        $apellidoMaterno = $data['apellido_materno'];
-        $passwordEncriptado = dec_enc('encrypt',$password);
-        $sthUsuario = $db->prepare($createUsuario);
-        $sthUsuario->bindParam(1, $idRol, PDO::PARAM_INT);
-        $sthUsuario->bindParam(2, $idStatus, PDO::PARAM_INT);
-        $sthUsuario->bindParam(3, $idJugador, PDO::PARAM_INT);
-        $sthUsuario->bindParam(4, $username, PDO::PARAM_STR);
-        $sthUsuario->bindParam(5, $passwordEncriptado, PDO::PARAM_STR);
-        $sthUsuario->bindParam(6, $nombre, PDO::PARAM_STR);
-        $sthUsuario->bindParam(7, $apellidoPaterno, PDO::PARAM_STR);
-        $sthUsuario->bindParam(8, $apellidoMaterno, PDO::PARAM_STR);
-        $sthUsuario->execute();
-        $idUsuario = $db->lastInsertId();
-
-        //Commit exitoso de transacción
-        $db->commit();
-
-        $response["status"] = "A";
-        $response["description"] = "Exitoso";
-        $response["idTransaction"] = time();
-        $response["parameters"] = $idUsuario;
-        $response["timeRequest"] = date("Y-m-d H:i:s");
-        echoResponse(200, $response);
     }catch(Exception $e){
         $db->rollBack();
         $response["status"] = "I";
