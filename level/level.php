@@ -200,7 +200,7 @@ $app->delete('/deleteLevel', function() use ($app){
     }catch(Exception $e){
         $db->rollBack();
         $response["status"] = "I";
-        $response["description"] = $e->getMessage();
+        $response["description"] = "No es posible eliminar el nivel seleccionado, verifique que ningún jugador tenga asignado ese nivel y cambielo para poder eliminarlo ó puede editar su nivel y cambiarle el nombre (Para más información contacte al administrador)";
         $response["idTransaction"] = time();
         $response["parameters"] = "No es posible eliminar el nivel seleccionado, verifique que ningún jugador tenga asignado ese nivel y cambielo para poder eliminarlo ó puede editar su nivel y cambiarle el nombre (Para más información contacte al administrador)";
         $response["timeRequest"] = date("Y-m-d H:i:s");

@@ -94,7 +94,7 @@ $app->get('/getGeneralStatisticsByPlayer', function() use ($app){
         $response["status"] = "A";
         $response["description"] = "Exitoso";
         $response["idTransaction"] = time();
-        $response["parameters"] = $rows;
+        $response["parameters"] = $rows[0];
         $response["timeRequest"] = date("Y-m-d H:i:s");
         echoResponse(200, $response);
     }catch(Exception $e){

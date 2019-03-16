@@ -25,7 +25,7 @@ $app->post('/createPlayer', function() use ($app){
         $body = $app->request->getBody();
         $data = json_decode($body, true);
 
-        $querieVerifyUser = 'SELECT * FROM usuario WHERE username = ?';
+        $querieVerifyUser = 'SELECT * FROM usuario WHERE LOWER(username) = LOWER(?)';
         $sth = $db->prepare($querieVerifyUser);
         $sth->bindParam(1, $data['username'], PDO::PARAM_STR);
         $sth->execute();
@@ -100,7 +100,7 @@ $app->post('/createPlayer', function() use ($app){
             echoResponse(200, $response);
         }else{
             $response["status"] = "I";
-            $response["description"] = "EL usuario ".$data['username']." no se encuentra disponible, intente nuevamente";
+            $response["description"] = "El usuario ".$data['username']." no se encuentra disponible, intente nuevamente";
             $response["idTransaction"] = time();
             $response["parameters"] = [];
             $response["timeRequest"] = date("Y-m-d H:i:s");
@@ -200,16 +200,37 @@ $app->post('/updatePlayer', function() use ($app){
         $sthUsuario->execute();
 
         //Actualización de jugador simple.
-        $updateJugador = 'UPDATE jugador SET fotografia = ?, sale = ?, rama = ? WHERE id = ?;';
+        $updateJugador = 'UPDATE jugador SET fotografia = ?, sale = ?, rama = ?, id_level = ? WHERE id = ?';
         $fotografia = $data['fotografia'];
         $sale = $data['sale'];
         $rama = $data['rama'];
+        $idLevel = $data['idLevel'];
         $sthJugador = $db->prepare($updateJugador);
         $sthJugador->bindParam(1, $fotografia, PDO::PARAM_STR);
         $sthJugador->bindParam(2, $sale, PDO::PARAM_STR);//Se usa string para datos numericos
         $sthJugador->bindParam(3, $rama, PDO::PARAM_STR);
-        $sthJugador->bindParam(4, $idJugador, PDO::PARAM_INT);
+        $sthJugador->bindParam(4, $idLevel, PDO::PARAM_INT);
+        $sthJugador->bindParam(5, $idJugador, PDO::PARAM_INT);
         $sthJugador->execute();
+
+        $equipos = $data['equipos'];
+        for ($i=0; $i < count($equipos); $i++) { 
+            //Creación de estadística en ceros.
+            $createEstadistica = 'INSERT INTO 
+                                    estadistica (`touch_pass`, `annotation_by_race`, `annotation_by_pass`, 
+                                    `interceptions`, `sachs`, `conversions`) VALUES (0,0,0,0,0,0);';
+            $sthEstadistica = $db->prepare($createEstadistica);
+            $sthEstadistica->execute();
+            $idEstadistica = $db->lastInsertId();
+
+            $createJugadorEstadistica = 'INSERT INTO jugador_estadistica (`id_equipo`, `id_jugador`, `id_estadistica`) VALUES (?,?,?)';
+            $sthJugadorEstadistica = $db->prepare($createJugadorEstadistica);
+            $sthJugadorEstadistica->bindParam(1, $equipos[$i], PDO::PARAM_INT);
+            $sthJugadorEstadistica->bindParam(2, $idJugador, PDO::PARAM_INT);
+            $sthJugadorEstadistica->bindParam(3, $idEstadistica, PDO::PARAM_INT);
+            $sthJugadorEstadistica->execute();
+            $idJugadorEstadistica = $db->lastInsertId();
+        }
 
         //Commit exitoso de transacción
         $db->commit();
@@ -232,7 +253,7 @@ $app->post('/updatePlayer', function() use ($app){
 });
 
 /* delete jugador */
-$app->delete('/deletePlayer', function() use ($app){
+$app->post('/deletePlayer', function() use ($app){
     try{
         $response = array();
         $dbHandler = new DbHandler();
@@ -323,6 +344,59 @@ $app->get('/getPlayers', function() use ($app){
         $response["parameters"] = $rows;
         $response["timeRequest"] = date("Y-m-d H:i:s");
         echoResponse(200, $response);
+    }catch(Exception $e){
+        $response["status"] = "I";
+        $response["description"] = $e->getMessage();
+        $response["idTransaction"] = time();
+        $response["parameters"] = $e;
+        $response["timeRequest"] = date("Y-m-d H:i:s");
+        echoResponse(400, $response);
+    }
+});
+
+/* Obtener jugador*/
+$app->get('/getPlayerById', function() use ($app){
+    try{
+        $response = array();
+        $dbHandler = new DbHandler();
+        $db = $dbHandler->getConnection();
+        //Creación de level.
+        $getLevels = 'SELECT 
+                        u.nombre,
+                        u.apellido_paterno,
+                        u.apellido_materno,
+                        j.rama,
+                        l.id as idLevel,
+                        l.level,
+                        j.sale,
+                        j.fotografia,
+                        j.id
+                        FROM usuario u
+                        INNER JOIN jugador j ON (u.id_jugador = j.id)
+                        INNER JOIN level l ON (l.id = j.id_level)
+                        WHERE u.id_jugador = ?';
+
+        $user = $app->request()->params('id');
+        $sth = $db->prepare($getLevels);
+        $sth->bindParam(1, $user, PDO::PARAM_STR);
+        $sth->execute();
+        $rows = $sth->fetchAll(PDO::FETCH_ASSOC);
+
+        if(count($rows)>0){
+            $response["status"] = "A";
+            $response["description"] = "Exitoso";
+            $response["idTransaction"] = time();
+            $response["parameters"] = $rows[0];
+            $response["timeRequest"] = date("Y-m-d H:i:s");
+            echoResponse(200, $response);
+        }else{
+            $response["status"] = "I";
+            $response["description"] = "El usuario no existe en la base de datos";
+            $response["idTransaction"] = time();
+            $response["parameters"] = [];
+            $response["timeRequest"] = date("Y-m-d H:i:s");
+            echoResponse(200, $response);
+        }
     }catch(Exception $e){
         $response["status"] = "I";
         $response["description"] = $e->getMessage();
