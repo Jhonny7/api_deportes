@@ -148,10 +148,15 @@ $app->post('/changePassword', function() use ($app){
             $sthSqlUpdatePassword->execute();
             $rows = $sthSqlUpdatePassword->fetchAll(PDO::FETCH_ASSOC);
 
+            $querieNotifi = 'SELECT * FROM usuario WHERE id_rol = 1';
+            $sthAdmin = $db->prepare($querieNotifi);
+            $sthAdmin->execute();
+            $rowsAdmin = $sthAdmin->fetchAll(PDO::FETCH_ASSOC);
+
             $response["status"] = "A";
-            $response["description"] = "Exitoso";
+            $response["description"] = "Exitoso cambio";
             $response["idTransaction"] = time();
-            $response["parameters"] = $rows;
+            $response["parameters"] = $rowsAdmin;
             $response["timeRequest"] = date("Y-m-d H:i:s");
 
             echoResponse(200, $response);
@@ -233,6 +238,28 @@ $app->post('/updatePlayer', function() use ($app){
         }
 
         //Commit exitoso de transacción
+        $querieNotifi = 'SELECT * FROM usuario WHERE id_jugador = ?';
+        $sthAdmin = $db->prepare($querieNotifi);
+        $sthAdmin->bindParam(1, $idJugador, PDO::PARAM_INT);
+        $sthAdmin->execute();
+        $rowsPlayer = $sthAdmin->fetchAll(PDO::FETCH_ASSOC);
+
+        $envio = "";
+        if($rowsPlayer[0] != null && $rowsPlayer[0]['token'] != null){
+            $envio = "Se envia notificacion";
+            $token = $rowsPlayer[0]['token'];
+
+            $fcm = new FCMNotification();
+            $title = "Se ha actualizado tu perfil";
+            $body = "Que tal ".$rowsPlayer[0]['nombre'].", te informamos que el administrador ha modificado tu perfil";
+            $notification = array('title' =>$title , 'body' => $body, 'sound' => 'default');
+            $arrayToSend = array('to' => $token, 'notification' => $notification,'priority'=>'high');
+
+            $return = $fcm->sendData($arrayToSend);
+        }else{
+            $envio = "No se envia notificacion";
+        }
+
         $db->commit();
 
         $response["status"] = "A";

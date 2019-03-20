@@ -7,6 +7,7 @@ header('Content-Type: text/html; charset=utf-8');
 header('P3P: CP="IDC DSP COR CURa ADMa OUR IND PHY ONL COM STA"'); 
 
 require_once '../include/DbHandler.php'; 
+require_once '../services/fcm_service.php'; 
 
 require '../libs/Slim/Slim.php'; 
 
@@ -40,6 +41,85 @@ $app->get('/getUsuarios', function(){
         $response["parameters"] = $e;
         $response["timeRequest"] = date("Y-m-d H:i:s");
 
+        echoResponse(400, $response);
+    }
+});
+
+/* Cambio de contraseña por jugador */
+$app->post('/changePassword', function() use ($app){
+    try{
+        $response = array();
+        $dbHandler = new DbHandler();
+        $db = $dbHandler->getConnection();
+        
+        $body = $app->request->getBody();
+        $data = json_decode($body, true);
+
+        $sqlExist = 'SELECT * FROM usuario WHERE password = MD5(?) AND id = ?';
+        $password = $data['password'];
+        $idUsuario = $data['idUsuario'];
+        $newPassword = $data['newPassword'];
+        $passwordEncriptado = dec_enc('encrypt',$password);
+        $sthSqlExist = $db->prepare($sqlExist);
+        $sthSqlExist->bindParam(1, $passwordEncriptado, PDO::PARAM_STR);
+        $sthSqlExist->bindParam(2, $idUsuario, PDO::PARAM_INT);
+        $sthSqlExist->execute();
+        $rows = $sthSqlExist->fetchAll(PDO::FETCH_ASSOC);
+
+        if(!empty($rows)){
+
+            $sqlUpdatePassword = 'UPDATE usuario SET password = MD5(?) WHERE id = ?';
+            $newPasswordEncriptado = dec_enc('encrypt',$newPassword);
+            $sthSqlUpdatePassword = $db->prepare($sqlUpdatePassword);
+            $sthSqlUpdatePassword->bindParam(1, $newPasswordEncriptado, PDO::PARAM_STR);
+            $sthSqlUpdatePassword->bindParam(2, $idUsuario, PDO::PARAM_INT);
+            $sthSqlUpdatePassword->execute();
+            $rows = $sthSqlUpdatePassword->fetchAll(PDO::FETCH_ASSOC);
+
+            $querieNotifi = 'SELECT * FROM usuario WHERE id_rol = 1';
+            $sthAdmin = $db->prepare($querieNotifi);
+            $sthAdmin->execute();
+            $rowsAdmin = $sthAdmin->fetchAll(PDO::FETCH_ASSOC);
+
+            $envio = "";
+            if($rowsAdmin[0] != null && $rowsAdmin[0]['token'] != null){
+                $envio = "Se envia notificacion";
+                $token = $rowsAdmin[0]['token'];
+
+                $fcm = new FCMNotification();
+                $title = "Cambio de contraseña";
+                $body = "Que tal ".$rowsAdmin[0]['nombre'].", te informamos que ".$rows[0]['nombre']." ha actualizado su contraseña.";
+                $notification = array('title' =>$title , 'body' => $body, 'sound' => 'default');
+                $arrayToSend = array('to' => $token, 'notification' => $notification,'priority'=>'high');
+
+                $return = $fcm->sendData($arrayToSend);
+            }else{
+                $envio = "No se envia notificacion";
+            }
+
+            $response["status"] = "A";
+            $response["description"] = "Exitoso";
+            $response["idTransaction"] = time();
+            $response["parameters"] = $enviothis.change();;
+            $response["timeRequest"] = date("Y-m-d H:i:s");
+
+            echoResponse(200, $response);
+        }else{
+            $response["status"] = "I";
+            $response["description"] = "Password incorrecto favor de verificar correctamente";
+            $response["idTransaction"] = time();
+            $response["parameters"] = [];
+            $response["timeRequest"] = date("Y-m-d H:i:s");
+
+            echoResponse(400, $response);
+        }
+    }catch(Exception $e){
+
+        $response["status"] = "I";
+        $response["description"] = $e->getMessage();
+        $response["idTransaction"] = time();
+        $response["parameters"] = $e;
+        $response["timeRequest"] = date("Y-m-d H:i:s");
         echoResponse(400, $response);
     }
 });

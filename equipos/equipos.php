@@ -319,6 +319,28 @@ $app->post('/removeTeamFromPlayer', function() use ($app){
             $sthEquipoDeleteEst->execute();            
         }
 
+        $querieNotifi = 'SELECT * FROM usuario WHERE id_jugador = ?';
+        $sthAdmin = $db->prepare($querieNotifi);
+        $sthAdmin->bindParam(1, $idJugador, PDO::PARAM_INT);
+        $sthAdmin->execute();
+        $rowsPlayer = $sthAdmin->fetchAll(PDO::FETCH_ASSOC);
+
+        $envio = "";
+        if($rowsPlayer[0] != null && $rowsPlayer[0]['token'] != null){
+            $envio = "Se envia notificacion";
+            $token = $rowsPlayer[0]['token'];
+
+            $fcm = new FCMNotification();
+            $title = "Se ha actualizado tu perfil";
+            $body = "Que tal ".$rowsPlayer[0]['nombre'].", te informamos que se te ha dado de baja de un equipo";
+            $notification = array('title' =>$title , 'body' => $body, 'sound' => 'default');
+            $arrayToSend = array('to' => $token, 'notification' => $notification,'priority'=>'high');
+
+            $return = $fcm->sendData($arrayToSend);
+        }else{
+            $envio = "No se envia notificacion";
+        }
+
         //Commit exitoso de transacción
         $db->commit();
 

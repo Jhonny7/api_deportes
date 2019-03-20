@@ -68,6 +68,46 @@ $app->get('/getAuthenticate', function() use ($app){
     }
 });
 
+/* update usuario */
+$app->post('/updateUser', function() use ($app){
+    try{
+        $response = array();
+        $dbHandler = new DbHandler();
+        $db = $dbHandler->getConnection();
+        
+        $db->beginTransaction();
+        $body = $app->request->getBody();
+        $data = json_decode($body, true);
+
+        //Actualización de usuario con datos de jugador
+        $updateUsuario = 'UPDATE usuario SET token = ? WHERE id = ?';
+        $token = $data['token'];
+        $id = $data['id'];
+        $sthUsuario = $db->prepare($updateUsuario);
+        $sthUsuario->bindParam(1, $token, PDO::PARAM_STR);
+        $sthUsuario->bindParam(2, $id, PDO::PARAM_INT);
+        $sthUsuario->execute();
+
+        //Commit exitoso de transacción
+        $db->commit();
+
+        $response["status"] = "A";
+        $response["description"] = "Exitoso";
+        $response["idTransaction"] = time();
+        $response["parameters"] = [];
+        $response["timeRequest"] = date("Y-m-d H:i:s");
+        echoResponse(200, $response);
+    }catch(Exception $e){
+        $db->rollBack();
+        $response["status"] = "I";
+        $response["description"] = $e->getMessage();
+        $response["idTransaction"] = time();
+        $response["parameters"] = $e;
+        $response["timeRequest"] = date("Y-m-d H:i:s");
+        echoResponse(400, $response);
+    }
+});
+
 /* corremos la aplicación */
 $app->run();
 

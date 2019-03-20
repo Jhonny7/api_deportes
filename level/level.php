@@ -128,10 +128,11 @@ $app->get('/getLevelById', function() use ($app){
 
 /* Editar Level */
 $app->post('/updateLevel', function() use ($app){
+    $response = array();
+    $dbHandler = new DbHandler();
+    $db = $dbHandler->getConnection();
     try{
-        $response = array();
-        $dbHandler = new DbHandler();
-        $db = $dbHandler->getConnection();
+        
         
         $body = $app->request->getBody();
         $data = json_decode($body, true);
@@ -155,7 +156,7 @@ $app->post('/updateLevel', function() use ($app){
         $response["status"] = "A";
         $response["description"] = "Exitoso";
         $response["idTransaction"] = time();
-        $response["parameters"] = $idEquipo;
+        $response["parameters"] = [];
         $response["timeRequest"] = date("Y-m-d H:i:s");
         echoResponse(200, $response);
     }catch(Exception $e){
@@ -170,7 +171,7 @@ $app->post('/updateLevel', function() use ($app){
 });
 
 /* Eliminar Level */
-$app->delete('/deleteLevel', function() use ($app){
+$app->post('/deleteLevel', function() use ($app){
     try{
         $response = array();
         $dbHandler = new DbHandler();
@@ -194,7 +195,7 @@ $app->delete('/deleteLevel', function() use ($app){
         $response["status"] = "A";
         $response["description"] = "Exitoso";
         $response["idTransaction"] = time();
-        $response["parameters"] = $idEquipo;
+        $response["parameters"] = [];
         $response["timeRequest"] = date("Y-m-d H:i:s");
         echoResponse(200, $response);
     }catch(Exception $e){
@@ -202,14 +203,14 @@ $app->delete('/deleteLevel', function() use ($app){
         $response["status"] = "I";
         $response["description"] = "No es posible eliminar el nivel seleccionado, verifique que ningún jugador tenga asignado ese nivel y cambielo para poder eliminarlo ó puede editar su nivel y cambiarle el nombre (Para más información contacte al administrador)";
         $response["idTransaction"] = time();
-        $response["parameters"] = "No es posible eliminar el nivel seleccionado, verifique que ningún jugador tenga asignado ese nivel y cambielo para poder eliminarlo ó puede editar su nivel y cambiarle el nombre (Para más información contacte al administrador)";
+        $response["parameters"] = $e->getMessage();
         $response["timeRequest"] = date("Y-m-d H:i:s");
         echoResponse(400, $response);
     }
 });
 
 /* Crear Nivel*/
-$app->put('/createLevel', function() use ($app){
+$app->post('/createLevel', function() use ($app){
     try{
         $response = array();
         $dbHandler = new DbHandler();
